@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Which bin?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #e4e7e1;
+    --ink: #1a1d1f;
+    --muted: #5b625f;
+    --line: #c6cbc3;
+    --bin-black: #202327;
+    --bin-blue: #1f62c4;
+    --bin-edge: rgba(0,0,0,.28);
+    --wheel: #0e0f10;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15181a;
+      --ink: #eceee9;
+      --muted: #9aa19d;
+      --line: #2c3134;
+      --bin-black: #34383d;
+      --bin-blue: #3a7fe0;
+      --bin-edge: rgba(255,255,255,.22);
+      --wheel: #07080a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15181a;
+    --ink: #eceee9;
+    --muted: #9aa19d;
+    --line: #2c3134;
+    --bin-black: #34383d;
+    --bin-blue: #3a7fe0;
+    --bin-edge: rgba(255,255,255,.22);
+    --wheel: #07080a;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 1.0625rem;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  main {
+    max-width: 34rem;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 4rem;
+  }
+
+  .now { color: var(--muted); margin: 0 0 1.25rem; }
+
+  .hero { display: flex; align-items: flex-end; gap: 1.5rem; }
+  .bin { flex: none; width: 6.5rem; height: auto; }
+  .bin .body, .bin .lid { fill: var(--bin-colour); stroke: var(--bin-edge); stroke-width: 1.5; }
+  .bin .wheel { fill: var(--wheel); }
+  [data-bin="black"] { --bin-colour: var(--bin-black); }
+  [data-bin="blue"]  { --bin-colour: var(--bin-blue); }
+
+  h1 {
+    font-family: "Barlow Condensed", "Arial Narrow", Impact, sans-serif;
+    font-weight: 700;
+    font-size: clamp(3.4rem, 17vw, 5.2rem);
+    line-height: .92;
+    letter-spacing: -.01em;
+    margin: 0;
+  }
+  .date {
+    font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
+    font-weight: 600;
+    font-size: 1.7rem;
+    margin: .4rem 0 0;
+  }
+  .when { margin: 1.25rem 0 0; font-size: 1.125rem; font-weight: 500; }
+  .when.urgent {
+    display: inline-block;
+    padding: .35rem .8rem;
+    border-radius: .3rem;
+    background: var(--ink);
+    color: var(--bg);
+  }
+
+  h2 {
+    font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
+    font-weight: 600;
+    font-size: 1.35rem;
+    margin: 3rem 0 .5rem;
+  }
+  ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+  li {
+    display: flex;
+    align-items: center;
+    gap: .9rem;
+    padding: .75rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .dot {
+    flex: none;
+    width: .95rem; height: .95rem;
+    border-radius: 50%;
+    background: var(--bin-colour);
+    border: 1.5px solid var(--bin-edge);
+  }
+  .row-date { flex: 1; }
+  .row-bin { color: var(--muted); }
+
+  .note { margin-top: 1.5rem; color: var(--muted); font-size: .95rem; }
+  :focus-visible { outline: 3px solid var(--bin-blue); outline-offset: 3px; }
+</style>
+</head>
+<body>
+<main id="app" data-bin="black">
+  <p class="now" id="now"></p>
+
+  <div class="hero">
+    <svg class="bin" viewBox="0 0 100 130" role="img" aria-label="Bin illustration">
+      <path class="body" d="M14 30 H86 L79 118 Q78.500 122 74 122 H26 Q21.500 122 21 118 Z"/>
+      <rect class="lid" x="8" y="18" width="84" height="14" rx="4"/>
+      <rect class="lid" x="38" y="10" width="24" height="9" rx="3"/>
+      <rect class="wheel" x="22" y="118" width="14" height="10" rx="4"/>
+      <rect class="wheel" x="64" y="118" width="14" height="10" rx="4"/>
+    </svg>
+    <div>
+      <h1 id="bin-name">Black bin</h1>
+      <p class="date" id="bin-date"></p>
+    </div>
+  </div>
+
+  <p class="when" id="when"></p>
+
+  <h2>Coming up</h2>
+  <ul id="list"></ul>
+  <p class="note">Bins alternate every Friday: black on 25 September, blue on 2 October, and so on.</p>
+</main>
+
+<script>
+  // Anchor: black bin goes out Friday 25 September 2026. Collections alternate weekly from there.
+  var ANCHOR = Date.UTC(2026, 8, 25) / 864e5;
+  var DAY = 864e5;
+
+  function fmt(dayNumber, opts) {
+    return new Date(dayNumber * DAY).toLocaleDateString("en-GB", Object.assign({ timeZone: "UTC" }, opts));
+  }
+  function binFor(dayNumber) {
+    var k = Math.round((dayNumber - ANCHOR) / 7);
+    return ((k % 2) + 2) % 2 === 0 ? "black" : "blue";
+  }
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  var t = new Date();
+  var today = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) / DAY;
+  var next = ANCHOR + 7 * Math.ceil((today - ANCHOR) / 7);
+  var bin = binFor(next);
+  var away = next - today;
+
+  document.getElementById("app").setAttribute("data-bin", bin);
+  document.getElementById("now").textContent = "Next bin out";
+  document.getElementById("bin-name").textContent = cap(bin) + " bin";
+  document.getElementById("bin-date").textContent = fmt(next, { weekday: "long", day: "numeric", month: "long" });
+
+  var when = document.getElementById("when");
+  if (away === 0) {
+    when.textContent = "Bin day is today";
+    when.className = "when urgent";
+  } else if (away === 1) {
+    when.textContent = "Collection is tomorrow. Put it out tonight.";
+    when.className = "when urgent";
+  } else {
+    when.textContent = "In " + away + " days";
+  }
+
+  var list = document.getElementById("list");
+  for (var i = 0; i < 6; i++) {
+    var d = next + 7 * i;
+    var b = binFor(d);
+    var li = document.createElement("li");
+    li.setAttribute("data-bin", b);
+    li.innerHTML =
+      '<span class="dot" aria-hidden="true"></span>' +
+      '<span class="row-date">' + fmt(d, { weekday: "short", day: "numeric", month: "short" }) + '</span>' +
+      '<span class="row-bin">' + cap(b) + ' bin</span>';
+    list.appendChild(li);
+  }
+</script>
+</body>
+</html>
